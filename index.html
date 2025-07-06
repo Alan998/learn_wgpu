@@ -1,0 +1,36 @@
+<!--
+    Install npm and http-server. Run the command below to start the wasm program:
+    npx http-server
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Learn WGPU</title>
+        <style>
+            canvas {
+            background-color: black;
+            }
+        </style>
+    </head>
+    <body id="learn_wgpu">
+        <canvas id="canvas" width="512" height="512"></canvas>
+        <script type="module">
+            import init from "./pkg/learn_wgpu.js";
+            // Add catch error to prevent
+            // "Uncaught (in promise) Error: Using exceptions for control flow, don't mind me.
+            // This isn't actually an error!" from wasm-bindgen
+            init().catch((error) => {
+            if (!error.message.startsWith("Using exceptions for control flow,")) {
+            throw error; // Re-throw if it's a real error
+            }
+            }).then(() => {
+            console.log("WASM Loaded");
+            });
+        </script>
+    </body>
+</html>
+
