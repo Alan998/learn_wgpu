@@ -19,6 +19,12 @@ use wasm_bindgen::prelude::*;
 
 // This will store the state of our game
 pub struct State {
+    surface: wgpu::Surface<'static>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    config: wgpu::SurfaceConfiguration,
+    is_surface_configured: bool,
+
     // Different parts of the application need to access the Window object,
     // Arc ensures that the Window is only dropped when all Arc pointers are out of scope
     window: Arc<Window>,
@@ -36,6 +42,63 @@ impl State {
     // handled by `anyhow` to be a dynamic error type (anyhow::Error).
     // It allow for easy propaagation by using ? operator.
     pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
+        let size = window.inner_size();
+
+        // instance is a entry point to the wgpu API.
+        // Its main purpose is to create Adapters and Surfaces
+        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            #[cfg(not(target_arch = "wasm32"))]
+            backends: wgpu::Backends::PRIMARY,
+            #[cfg(target_arch = "wasm32")]
+            backends: wgpu::Backends::GL,
+            ..Default::default()
+        });
+
+        // surface represents the drawable area on the screen
+        let surface = instance.create_surface(window.clone()).unwrap();
+
+        // adapter is the handle for the actual graphics card
+        // it can get information about the graphics card,
+        // and is used for creating Device and Queue
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                // power_preference can be HighPerformance or LowPower
+                power_preference: wgpu::PowerPreference::default(),
+
+                // compatible_surface tells wgpu to find an adapter that is capable of presenting
+                // to this specific surface, ensures the chosen GPU can display graphics on the window
+                // When doing offscreen rendering or compute only tasks, set it to None.
+                compatible_surface: Some(&surface),
+
+                // determines whether wgpu shouldl fallback to software adapter if no suitable
+                // hardware adapter is found
+                force_fallback_adapter: false,
+            })
+            .await?; // request_adapter is a async function, so we need to await its result
+
+        // Difference between instance and adapter:
+        // In wgpu, the Instance acts as an initial gateway to the graphics system,
+        // while an Adapter represents a specific, identified GPU (or a software fallback) that can
+        // potentially be used.
+        // You use the Instance to find Adapters, and then use an Adapter to connect to the GPU and
+        // create a Device (which is what you actually use for rendering).
+
+        // create device and queue with adapter
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::empty(),
+                required_limits: if cfg!(target_arch = "wasm32") {
+                    wgpu::Limits::downlevel_webgl2_defaults()
+                } else {
+                    wgpu::Limits::default()
+                },
+                memory_hints: Default::default(),
+                trace: wgpu::Trace::Off,
+            })
+            .await?;
+
         // 'Self' here refers to the State struct itself.
         // So, this is returning an instance of State
         Ok(Self { window })
